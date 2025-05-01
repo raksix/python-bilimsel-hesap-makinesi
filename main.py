@@ -503,7 +503,7 @@ class CalculatorApp(ctk.CTk):
                 # Constants
                 "pi": pi, "E": E,
                  # Direct Sympy Functions
-                "sqrt": sqrt, "ln": ln, "abs": Abs, "exp": exp, # Added missing value 'exp'
+                "sqrt": sqrt, "ln": ln, "abs": Abs, "exp": exp,
                 # Custom Functions (Angle Aware or Specific Logic)
                 "log": custom_log10,
                 "root_3": custom_root3,
@@ -514,63 +514,77 @@ class CalculatorApp(ctk.CTk):
                 "asin": angle_aware_asin,
                 "acos": angle_aware_acos,
                 "atan": angle_aware_atan,
-                # Symbolic Functions (passed directly)
+                # Symbolic Functions (passed directly - these will be parsed into unevaluated functions)
                 "diff": diff, "integrate": integrate, "solve": solve,
                 # Symbols (including x, y)
                 **local_sympy_vars
             }
 
             # --- Parsing Configuration ---
-            # Implicit multiplication is tricky with function names.
-            # Let's disable it for now to see if it fixes the sin30 issue.
-            # We might need a more sophisticated parser if implicit multiplication is essential.
-            # transformations = standard_transformations + (implicit_multiplication_application, convert_xor,)
-            transformations = standard_transformations + (convert_xor,) # Removed implicit multiplication
+            # Re-enable implicit multiplication to handle cases like '9x' inside functions
+            transformations = standard_transformations + (implicit_multiplication_application, convert_xor,)
 
-            # --- Parsing and Evaluation ---
-            is_symbolic_call = expr_str.lower().startswith(("diff(", "integrate(", "solve("))
-
-            # Parse the expression, keeping custom functions unevaluated initially
+            # --- Parsing ---
+            # Parse the expression, keeping custom and symbolic functions unevaluated initially
             parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=False)
 
             if not isinstance(parsed_expr, Expr):
+                 # Handle cases where parsing might fail subtly or return unexpected types
+                 # This might happen if input is just a function name like "sin"
+                 # Or if the syntax is fundamentally wrong before even reaching SymPy evaluation
                  raise sympy.SympifyError(f"Invalid expression input: {expression}")
 
-            # Substitute numerical variables (A-F, Ans)
+            # --- Substitution ---
             substituted_expr = parsed_expr.subs(subs_dict) if hasattr(parsed_expr, 'subs') else parsed_expr
 
-            # --- Numerical Evaluation using evalf ---
-            # Pass the current angle mode to the evalf context for custom functions
-            # The precision can be adjusted if needed
-            result = substituted_expr.evalf(subs={'angle_mode': self.angle_mode}) # Pass mode via subs
+            # --- Evaluation ---
+            # Check if the expression is an unevaluated symbolic function call
+            # Simplified check: Rely on Derivative/Integral classes and the func attribute check
+            is_symbolic_func = isinstance(substituted_expr, (sympy.Derivative, sympy.Integral)) \
+                               or (hasattr(substituted_expr, 'func') and substituted_expr.func in (diff, integrate, solve))
 
-            # Check if result is symbolic (e.g., diff result) or numerical
-            if not result.is_Number and not is_symbolic_call:
-                 # If it's not a number after evalf and wasn't a symbolic call,
-                 # it might indicate an issue or unevaluated parts.
-                 # Try N() as a fallback, but this might indicate a deeper problem.
-                 try:
-                     result = N(substituted_expr)
-                 except Exception as e:
-                     print(f"Evalf resulted in non-number, N() failed: {e}")
-                     raise sympy.SympifyError("Could not evaluate expression numerically")
 
-            # For purely symbolic results (like diff), return them directly
-            if is_symbolic_call and not result.is_Number:
-                 return result
+            if is_symbolic_func:
+                # Perform the symbolic operation
+                result = substituted_expr.doit()
+            else:
+                # --- Numerical Evaluation using evalf ---
+                # Pass the current angle mode to the evalf context for custom functions
+                result = substituted_expr.evalf(subs={'angle_mode': self.angle_mode})
 
-            # Return numerical result (could be float, Integer, Rational)
+                # Check if evalf resulted in a number, otherwise try N() as fallback
+                if not result.is_Number:
+                    try:
+                        result_n = N(substituted_expr)
+                        # Only use N() result if evalf didn't produce a number
+                        if not result.is_Number:
+                             result = result_n
+                    except Exception as e:
+                        print(f"Evalf resulted in non-number, N() failed: {e}")
+                        # If still not a number, might be an unresolved symbolic expression
+                        # Return the result from evalf (which might be symbolic)
+                        pass # Keep the result from evalf
+
+            # Return the final result (could be number, symbolic expression, list for solve, etc.)
             return result
 
         # --- Error Handling (refined) ---
         except (sympy.SympifyError, SyntaxError, TokenError) as e:
             print(f"Calculation Error (Syntax/Parsing): {type(e).__name__} - {e}")
-            # Specific check for implicit multiplication issue if it was intended
-            if "implicit multiplication" in str(e).lower():
-                 return "Syntax Error (Implicit Mult?)"
+            # Add more specific checks if needed
+            if "invalid syntax" in str(e).lower():
+                 # Check if it might be related to implicit multiplication failure
+                 if any(op in expr_str for op in ['(', ')']) and not any(op in expr_str for op in [',', '+', '-', '*', '/']):
+                     # Heuristic: If parentheses exist but no operators/comma, maybe implicit mult failed?
+                     return "Syntax Error (Implicit Mult?)"
+                 elif any(f in expr_str for f in ['diff(', 'integrate(', 'solve(']):
+                     return "Argument Error" # Suggests wrong arguments for symbolic functions
             return "Syntax Error"
         except TypeError as e:
-            # This error should be less likely with custom Function classes
+            # Check if it's related to symbolic functions needing more args during doit()
+            if any(func in str(e).lower() for func in ['diff', 'integrate', 'solve', 'derivative', 'integral']):
+                 print(f"Calculation Error (Symbolic Args): {e}")
+                 return "Argument Error"
             print(f"Calculation Error (Type/Args): {e}")
             return "Type Error"
         except ZeroDivisionError:
@@ -587,6 +601,9 @@ class CalculatorApp(ctk.CTk):
             return "Undefined Error"
         except Exception as e:
             print(f"Unexpected Error: {type(e).__name__} - {e}")
+            # Check if it's related to doit() failing
+            if "doit" in str(e).lower():
+                 return "Evaluation Error"
             return "System Error"
 
 # ==============================================================================
