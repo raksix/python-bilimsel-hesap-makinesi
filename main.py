@@ -515,7 +515,7 @@ class CalculatorApp(ctk.CTk):
                 # Constants
                 "pi": pi, "E": E,
                  # Direct Sympy Functions
-                "sqrt": sqrt, "ln": ln, "abs": Abs, "exp",
+                "sqrt": sqrt, "ln": ln, "abs": Abs, "exp": exp, # Added missing value 'exp'
                 # Custom Functions (Angle Aware or Specific Logic)
                 "log": custom_log10,
                 "root_3": custom_root3,
