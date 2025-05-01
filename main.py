@@ -352,6 +352,15 @@ class CalculatorApp(ctk.CTk):
             # Keep display enabled after DEL to allow further editing/deletion
             disable_display_after = False
         elif primary_char == 'EXE': # Removed '=' from this condition
+            # --- Auto-close parentheses ---
+            open_paren_count = current_text.count('(')
+            close_paren_count = current_text.count(')')
+            if open_paren_count > close_paren_count:
+                missing_parens = ')' * (open_paren_count - close_paren_count)
+                current_text += missing_parens
+                print(f"Auto-added closing parentheses: {missing_parens}") # Optional: Log this action
+            # --- End Auto-close ---
+
             result = self.calculate(current_text)
             self.display.delete("0.0", "end")
             self.display.insert("0.0", str(result))
