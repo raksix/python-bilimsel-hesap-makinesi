@@ -5,7 +5,7 @@ import sympy
 # Import necessary sympy functions and types
 from sympy import (sympify, N, pi, E, sqrt, log, ln, sin as sympy_sin, cos as sympy_cos, tan as sympy_tan, # Renamed base trig
                    asin as sympy_asin, acos as sympy_acos, atan as sympy_atan, # Renamed base inverse trig
-                   symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp, Eq, # Added Eq
+                   symbols, Number, Rational, diff, integrate, solve, Symbol, Pow, Abs, root, exp, Eq, # Added Rational
                    init_printing, Function, Expr, zoo) # Added zoo
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application, convert_xor
 import numpy as np # Import NumPy for matrix operations
@@ -144,7 +144,9 @@ class CalculatorApp(ctk.CTk):
         self.angle_mode = "DEG" # Default angle mode: DEG or RAD
         self.shift_active = False # Track SHIFT state
         self.insert_mode = False # Track INS state (Placeholder)
-        self.last_result = 0 # Store the last calculated result for Ans
+        self.last_result = 0 # Store the last calculated NUMERICAL result for Ans and S<=>D
+        self.last_exact_result = None # Store the last EXACT (symbolic/fractional) result
+        self.display_is_decimal = True # Track if the display shows decimal or exact form
         self.variables = { # Dictionary to store variable values
             'A': 0, 'B': 0, 'C': 0, 'D': 0, 'E': 0, 'F': 0,
             'Ans': 0, 'x': 0, 'y': 0 # Added 'y'
@@ -185,7 +187,7 @@ class CalculatorApp(ctk.CTk):
         # Ana Ekran (Çok satırlı giriş/çıkış için)
         self.display = ctk.CTkTextbox(self.display_frame, height=100, font=("Arial", 20))
         self.display.pack(fill="both", expand=True)
-        self.display.insert("0.0", "0") # Başlangıç değeri
+        self.display.insert("0.0", "Bismillahirrahmanirrahîm") # Başlangıç değeri
         self.display.configure(state="disabled") # Başlangıçta düzenlenemez
 
     def _create_buttons(self):
@@ -193,16 +195,16 @@ class CalculatorApp(ctk.CTk):
         self.button_frame = ctk.CTkFrame(self)
         self.button_frame.pack(pady=10, padx=10, fill="both", expand=True)
 
-        # Button layout definition - Added '=' next to EXE
+        # Button layout definition - Added S<=>D
         self.button_definitions = [
             # Row 0: Function Keys (Top)
             ('SHIFT', 0, 0), ('d/dx', 0, 1), ('∫dx', 0, 2), ('solve', 0, 3), ('TOOLS', 0, 4), ('SETTINGS', 0, 5),
-            # Row 1: Navigation / Mode / Parentheses
-            ('(', 1, 0), (')', 1, 1), ('HOME', 1, 2), ('↑', 1, 3), ('FORMAT', 1, 4), ('ON', 1, 5),
+            # Row 1: Navigation / Mode / Parentheses / S<=>D
+            ('(', 1, 0), (')', 1, 1), ('HOME', 1, 2), ('↑', 1, 3), ('S<=>D', 1, 4), ('ON', 1, 5), # Added S<=>D
             # Row 2: Navigation / Functions / Variables
             ('x', 2, 0), ('y', 2, 1), ('←', 2, 2), ('OK', 2, 3), ('→', 2, 4), ('INS', 2, 5),
             # Row 3: Functions / Navigation
-            ('√', 3, 0), ('log', 3, 1), ('x²', 3, 2), ('↓', 3, 3), ('ln', 3, 4), ('(-)', 3, 5), # Moved x² here
+            ('√', 3, 0), ('log', 3, 1), ('x²', 3, 2), ('↓', 3, 3), ('ln', 3, 4), ('(-)', 3, 5),
             # Row 4: Numbers & Basic Ops
             ('7', 4, 0), ('8', 4, 1), ('9', 4, 2), ('DEL', 4, 3, 1, 2), ('AC', 4, 5),
             # Row 5: Numbers & Basic Ops
@@ -210,9 +212,9 @@ class CalculatorApp(ctk.CTk):
             # Row 6: Numbers & Basic Ops
             ('1', 6, 0), ('2', 6, 1), ('3', 6, 2), ('+', 6, 3), ('-', 6, 4),
             # Row 7: Numbers, Constants, Execute
-            ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4), ('=', 7, 5), # Added '=' button
+            ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4), ('=', 7, 5),
             # Row 8: Other Functions / Constants
-            ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4), ('QR', 8, 5), # 'e' button is here
+            ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4), ('QR', 8, 5),
             # Row 9: Variable Keys
             ('A', 9, 0), ('B', 9, 1), ('C', 9, 2), ('D', 9, 3), ('E', 9, 4), ('F', 9, 5),
         ]
@@ -242,7 +244,8 @@ class CalculatorApp(ctk.CTk):
                  button.configure(fg_color="blue") # Emphasize EXE
             elif primary_text == 'SHIFT':
                  button.configure(fg_color="orange") # Emphasize SHIFT
-            # Removed the styling for '=' button
+            elif primary_text == 'S<=>D': # Style S<=>D button
+                 button.configure(fg_color=("gray50", "gray40")) # Example style
 
             button.grid(row=row, column=col, rowspan=rowspan, columnspan=colspan, padx=1, pady=1, sticky="nsew")
             self.buttons[primary_text] = button
@@ -333,13 +336,16 @@ class CalculatorApp(ctk.CTk):
 
         disable_display_after = True # Flag to control if display is disabled at the end
 
-        # --- Control Keys (AC, DEL, ON, EXE, Settings, SHIFT, Navigation, INS) ---
+        # --- Control Keys (AC, DEL, ON, EXE, Settings, SHIFT, Navigation, INS, S<=>D) ---
         if primary_char == 'ON':
             self.destroy()
             return # Exit immediately
         elif primary_char == 'AC':
             self.display.delete("0.0", "end")
-            self.display.insert("0.0", "")
+            self.display.insert("0.0", "") # Reset to 0 on AC
+            self.last_result = 0
+            self.last_exact_result = None
+            self.display_is_decimal = True
             if self.shift_active: self.toggle_shift()
             # AC should leave cursor at start, but disable display for next input
         elif primary_char == 'DEL':
@@ -361,19 +367,108 @@ class CalculatorApp(ctk.CTk):
                 print(f"Auto-added closing parentheses: {missing_parens}") # Optional: Log this action
             # --- End Auto-close ---
 
-            result = self.calculate(current_text)
+            exact_result = self.calculate(current_text)
+            self.last_exact_result = exact_result # Store the exact result (could be list, expr, number, string error)
+
+            numerical_result_str = ""
+            numerical_result_val = None # For Ans
+
+            # --- Handle result formatting and numerical evaluation ---
+            if isinstance(exact_result, str) and "Error" in exact_result:
+                numerical_result_str = exact_result # Keep error message
+                self.last_result = 0
+                self.last_exact_result = None # Clear exact result on error
+            elif isinstance(exact_result, list): # Handle solve results (list)
+                self.last_result = 0 # Default Ans for list results
+                try:
+                    # Try to get numerical approximations for display
+                    num_solutions = [N(sol) for sol in exact_result]
+                    # Store first numerical solution in Ans if possible
+                    if num_solutions and isinstance(num_solutions[0], (int, float, Number)):
+                         self.last_result = float(num_solutions[0])
+
+                    # Format for display
+                    if len(num_solutions) == 1:
+                        numerical_result_str = f"x = {num_solutions[0]}"
+                    else:
+                        numerical_result_str = f"x = {num_solutions}"
+                except Exception as e:
+                    print(f"Error evaluating solutions numerically: {e}")
+                    # Fallback to showing the exact list
+                    if len(exact_result) == 1:
+                         numerical_result_str = f"x = {exact_result[0]}"
+                    else:
+                         numerical_result_str = f"x = {exact_result}"
+            elif exact_result is not None: # Handle standard expressions/numbers
+                try:
+                    num_res = N(exact_result, subs={'angle_mode': self.angle_mode})
+                    if isinstance(num_res, (int, float, Number)):
+                        numerical_result_val = float(num_res)
+                        numerical_result_str = str(numerical_result_val)
+                    else: # If N() still returns symbolic
+                        numerical_result_str = str(exact_result) # Show exact form
+                        numerical_result_val = 0
+                    self.last_result = numerical_result_val
+                except Exception as e:
+                    print(f"Error during numerical evaluation for display: {e}")
+                    numerical_result_str = str(exact_result) # Fallback to exact string
+                    self.last_result = 0
+            else:
+                 numerical_result_str = "Error" # Should not happen
+                 self.last_result = 0
+
+            self.variables['Ans'] = self.last_result # Update Ans variable
+
             self.display.delete("0.0", "end")
-            self.display.insert("0.0", str(result))
-            # Update last_result only if calculation was successful and numerical
-            if isinstance(result, (int, float, Number)):
-                 self.last_result = result
-                 self.variables['Ans'] = result # Update Ans variable
-            elif isinstance(result, str) and "Error" not in result:
-                 # Handle symbolic results or formatted equation results if needed
-                 # For now, don't update last_result for non-numerical strings
-                 pass
+            self.display.insert("0.0", numerical_result_str) # Display numerical initially
+            self.display_is_decimal = True # Set display state
+
             if self.shift_active: self.toggle_shift()
             # Disable after calculation
+        elif primary_char == 'S<=>D':
+            # Toggle only if there's a valid last exact result (not None or error string)
+            if self.last_exact_result is not None and not (isinstance(self.last_exact_result, str) and "Error" in self.last_exact_result):
+                self.display_is_decimal = not self.display_is_decimal
+                self.display.configure(state="normal")
+                self.display.delete("0.0", "end")
+                display_text = ""
+
+                if self.display_is_decimal:
+                    # --- Display Decimal Form ---
+                    if isinstance(self.last_exact_result, list): # Handle list from solve
+                        try:
+                            num_solutions = [N(sol) for sol in self.last_exact_result]
+                            if len(num_solutions) == 1:
+                                display_text = f"x = {num_solutions[0]}"
+                            else:
+                                display_text = f"x = {num_solutions}"
+                        except Exception as e:
+                             print(f"Error evaluating solutions numerically for S<=>D: {e}")
+                             display_text = str(self.last_result) # Fallback? Or show exact list?
+                    else: # Handle standard expressions/numbers
+                        try:
+                            num_res = N(self.last_exact_result, subs={'angle_mode': self.angle_mode})
+                            display_text = str(float(num_res)) # Convert to float then string
+                        except:
+                            display_text = str(self.last_result) # Fallback to stored numerical value
+                else:
+                    # --- Display Exact Form ---
+                    if isinstance(self.last_exact_result, list): # Handle list from solve
+                         if len(self.last_exact_result) == 1:
+                              display_text = f"x = {self.last_exact_result[0]}"
+                         else:
+                              display_text = f"x = {self.last_exact_result}"
+                    else: # Handle standard expressions/numbers
+                        display_text = str(self.last_exact_result)
+
+                self.display.insert("0.0", display_text)
+                self.display.configure(state="disabled")
+            else:
+                # Do nothing if there's no valid exact result to toggle
+                pass
+            # Keep display disabled after toggle attempt
+            disable_display_after = True # Ensure display is disabled
+            return # Prevent further processing
         elif primary_char == 'SETTINGS':
             self.angle_mode = "RAD" if self.angle_mode == "DEG" else "DEG"
             self.update_mode_label()
@@ -501,9 +596,10 @@ class CalculatorApp(ctk.CTk):
     def calculate(self, expression):
         """
         Parses and evaluates the mathematical expression using SymPy.
-        Handles variable substitution, angle modes, symbolic operations, shifted functions, equations, and errors.
+        Returns the exact SymPy result object (or list from solve, or error string).
         """
         is_equation = False # Define early for use in exception handling
+        result = None # Initialize result
         try:
             # --- Pre-processing ---
             # Replace π with pi for SymPy compatibility before parsing
@@ -563,15 +659,9 @@ class CalculatorApp(ctk.CTk):
                 # Assume solving for 'x' if present
                 solve_var = local_sympy_vars.get('x')
                 if solve_var and solve_var in equation.free_symbols:
+                    # Return the RAW result from solve (usually a list)
                     result = solve(equation, solve_var)
-                    # Format result: solve might return a list
-                    if isinstance(result, list):
-                        if len(result) == 1:
-                            return f"x = {result[0]}" # Display single solution nicely
-                        else:
-                            return f"x = {result}" # Display list for multiple solutions
-                    else: # Handle other possible return types from solve if necessary
-                        return f"x = {result}"
+                    return result # Return the list directly
                 else:
                     # If 'x' is not in the equation, maybe try 'y' or return error?
                     return "Error: No variable (x) to solve for"

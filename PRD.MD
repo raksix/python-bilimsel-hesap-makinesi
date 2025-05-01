@@ -22,11 +22,12 @@ Elbette, Casio FX-99ICW benzeri bir bilimsel hesap makinesi uygulaması için ad
         *   **Mod ve Navigasyon:** on (Açma/Kapama - Uygulama başlatma/kapatma simülasyonu), HOME, SETTINGS (Ayarlar menüsü - başlangıçta derece/radyan geçişi), Yukarı/Aşağı/Sol/Sağ Ok Tuşları (Giriş/geçmişte gezinme), OK (Onay)
         *   **Fonksiyon Tuşları:** SHIFT (İkincil fonksiyonları etkinleştirme), VARIABLE (Değişken menüsü), FUNCTION (Fonksiyon menüsü), CATALOG (Fonksiyon kataloğu), TOOLS (Araçlar menüsü)
         *   **Değişken Tuşları:** A, B, C, D, E, F (Değer atama ve kullanma)
-        *   **Özel Tuşlar:** FORMAT (Sayı formatı), EXE (Hesapla/Eşittir), = (Hesapla/Eşittir - EXE ile aynı işlev), INS (İnsert/Ekleme modu), AC (All Clear/Tümünü Temizle), (-) (Negatif işareti)
+        *   **Özel Tuşlar:** FORMAT (Sayı formatı), EXE (Hesapla/Eşittir), = (Denklem için eşittir), INS (İnsert/Ekleme modu), AC (All Clear/Tümünü Temizle), (-) (Negatif işareti), S<=>D (Sonucu standart ve ondalık form arasında değiştirme)
     *   **2.1.3. Hesaplama Motoru:**
         *   Standart matematiksel işlem önceliğini (PEMDAS/BODMAS) doğru bir şekilde uygulayacak.
         *   Girilen ifadeleri ayrıştırıp (parsing) değerlendirecek (evaluation).
-        *   '=' veya 'EXE' tuşuna basıldığında hesaplama yapılacak.
+        *   'EXE' tuşuna basıldığında hesaplama yapılacak. Sonuç hem tam (kesirli/sembolik) hem de ondalık formda saklanacak. Başlangıçta ondalık form gösterilecek.
+        *   'S<=>D' tuşuna basıldığında, ekran son hesaplama sonucunun tam ve ondalık gösterimi arasında geçiş yapacak.
         *   Trigonometrik fonksiyonlar için Derece ve Radyan modları arasında geçiş yapılabilecek ve hesaplamalar seçili moda göre yapılacak.
         *   Logaritmik (log, ln) ve üstel (x10^) fonksiyonları destekleyecek.
         *   `sympy` kütüphanesi kullanılarak sembolik türev ve integral hesaplamaları yapılacak (örneğin, `diff(x**2, x)`, `integrate(x, x)`).
@@ -70,11 +71,12 @@ Elbette, Casio FX-99ICW benzeri bir bilimsel hesap makinesi uygulaması için ad
 **4. Test Senaryoları (Örnekler)**
 
 *   **Temel Aritmetik:** `2 + 3 * 4` -> Beklenen Sonuç: `14`
+*   **Kesirli Sonuç:** `5 / 2` -> Beklenen Sonuç: `2.5` (Başlangıçta), S<=>D basınca: `5/2` (veya SymPy formatı), tekrar basınca: `2.5`
 *   **Parantez Kullanımı:** `(2 + 3) * 4` -> Beklenen Sonuç: `20`
 *   **Trigonometri (Derece Modu):** `sin(30)` -> Beklenen Sonuç: `0.5`
 *   **Trigonometri (Radyan Modu):** `cos(pi)` -> Beklenen Sonuç: `-1`
 *   **Logaritma:** `log(100)` -> Beklenen Sonuç: `2`
-*   **Doğal Logaritma:** `ln(e)` -> Beklenen Sonuç: `1` -
+*   **Doğal Logaritma:** `ln(e)` -> Beklenen Sonuç: `1`
 *   **Karekök:** `sqrt(9)` veya `√(9)` -> Beklenen Sonuç: `3`
 *   **Üs Alma:** `2^3` (veya `2 x^y 3`) -> Beklenen Sonuç: `8`
 *   **Değişken Kullanımı:** `5 -> A`, `A + 10` -> Beklenen Sonuç: `15`, `Ans` -> Beklenen Sonuç: `15`
