@@ -137,8 +137,8 @@ class CalculatorApp(ctk.CTk):
         super().__init__()
 
         # --- Window Configuration ---
-        self.title("Bilimsel Hesap Makinesi (FX-99ICW Klonu)")
-        self.geometry("480x720") # Adjust size as needed
+        self.title("Hesap Makinesi (Iğdır Sürümü - Developed by Furkan Ermağ)")
+        self.geometry("520x760") # Adjust size as needed
 
         # --- State Variables ---
         self.angle_mode = "DEG" # Default angle mode: DEG or RAD
