@@ -3,14 +3,127 @@ import math
 # Use sympy for safer evaluation and advanced math
 import sympy
 # Import necessary sympy functions and types
-from sympy import (sympify, N, pi, E, sqrt, log, ln, sin, cos, tan, asin, acos, atan, # Added inverse trig
+from sympy import (sympify, N, pi, E, sqrt, log, ln, sin as sympy_sin, cos as sympy_cos, tan as sympy_tan, # Renamed base trig
+                   asin as sympy_asin, acos as sympy_acos, atan as sympy_atan, # Renamed base inverse trig
                    symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp,
-                   init_printing) # Added init_printing here
+                   init_printing, Function, Expr) # Added Function, Expr
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application, convert_xor
 import numpy as np # Import NumPy for matrix operations
+from tokenize import TokenError # Import TokenError for explicit handling
 
 # For better printing of sympy results if needed (optional)
 init_printing(use_unicode=True)
+
+# ==============================================================================
+# Custom SymPy Functions for Angle Mode Awareness
+# ==============================================================================
+# We need a way for these functions to know the current angle_mode.
+# We can pass the CalculatorApp instance or the mode itself during evaluation.
+# Let's try passing the mode to a custom evaluation method later.
+
+class angle_aware_sin(Function):
+    @classmethod
+    def eval(cls, arg, angle_mode='DEG'): # Default mode for symbolic eval if needed
+        # Symbolic evaluation if possible
+        if arg == 0: return sympy.Integer(0)
+        # Add other symbolic simplifications if desired
+        return None # Return None if no symbolic evaluation
+
+    def _eval_evalf(self, prec, angle_mode='DEG'):
+        # Numerical evaluation using N() or evalf()
+        arg_val = self.args[0].evalf(prec)
+        if angle_mode == 'DEG':
+            return sympy_sin(arg_val * pi / 180).evalf(prec)
+        else: # RAD
+            return sympy_sin(arg_val).evalf(prec)
+
+class angle_aware_cos(Function):
+    @classmethod
+    def eval(cls, arg, angle_mode='DEG'):
+        if arg == 0: return sympy.Integer(1)
+        return None
+    def _eval_evalf(self, prec, angle_mode='DEG'):
+        arg_val = self.args[0].evalf(prec)
+        if angle_mode == 'DEG':
+            return sympy_cos(arg_val * pi / 180).evalf(prec)
+        else:
+            return sympy_cos(arg_val).evalf(prec)
+
+class angle_aware_tan(Function):
+    @classmethod
+    def eval(cls, arg, angle_mode='DEG'):
+        if arg == 0: return sympy.Integer(0)
+        return None
+    def _eval_evalf(self, prec, angle_mode='DEG'):
+        arg_val = self.args[0].evalf(prec)
+        # Handle potential pole errors for tan(90), tan(270) etc.
+        if angle_mode == 'DEG':
+            # Check for multiples of 90 degrees (excluding 180, 360...)
+            if (arg_val % 180) == 90:
+                 raise sympy.PoleError("tan argument is multiple of 90 degrees") # Or return zoo?
+            return sympy_tan(arg_val * pi / 180).evalf(prec)
+        else:
+             # Check for multiples of pi/2
+            if (arg_val / (pi/2)) % 2 == 1:
+                 raise sympy.PoleError("tan argument is multiple of pi/2")
+            return sympy_tan(arg_val).evalf(prec)
+
+# Similar classes for asin, acos, atan, returning degrees if mode is DEG
+class angle_aware_asin(Function):
+    @classmethod
+    def eval(cls, arg, angle_mode='DEG'): return None
+    def _eval_evalf(self, prec, angle_mode='DEG'):
+        arg_val = self.args[0].evalf(prec)
+        rad_result = sympy_asin(arg_val).evalf(prec)
+        if angle_mode == 'DEG':
+            return (rad_result * 180 / pi).evalf(prec)
+        else:
+            return rad_result
+
+class angle_aware_acos(Function):
+    @classmethod
+    def eval(cls, arg, angle_mode='DEG'): return None
+    def _eval_evalf(self, prec, angle_mode='DEG'):
+        arg_val = self.args[0].evalf(prec)
+        rad_result = sympy_acos(arg_val).evalf(prec)
+        if angle_mode == 'DEG':
+            return (rad_result * 180 / pi).evalf(prec)
+        else:
+            return rad_result
+
+class angle_aware_atan(Function):
+    @classmethod
+    def eval(cls, arg, angle_mode='DEG'): return None
+    def _eval_evalf(self, prec, angle_mode='DEG'):
+        arg_val = self.args[0].evalf(prec)
+        rad_result = sympy_atan(arg_val).evalf(prec)
+        if angle_mode == 'DEG':
+            return (rad_result * 180 / pi).evalf(prec)
+        else:
+            return rad_result
+
+# Custom functions for log10, root_3, pow10
+class custom_log10(Function):
+    @classmethod
+    def eval(cls, arg): return None
+    def _eval_evalf(self, prec):
+        arg_val = self.args[0].evalf(prec)
+        return log(arg_val, 10).evalf(prec)
+
+class custom_root3(Function):
+    @classmethod
+    def eval(cls, arg): return None
+    def _eval_evalf(self, prec):
+        arg_val = self.args[0].evalf(prec)
+        return root(arg_val, 3).evalf(prec)
+
+class custom_pow10(Function):
+    @classmethod
+    def eval(cls, arg): return None
+    def _eval_evalf(self, prec):
+        arg_val = self.args[0].evalf(prec)
+        return Pow(10, arg_val).evalf(prec)
+
 
 # ==============================================================================
 # Main Application Class
@@ -34,10 +147,10 @@ class CalculatorApp(ctk.CTk):
         self.last_result = 0 # Store the last calculated result for Ans
         self.variables = { # Dictionary to store variable values
             'A': 0, 'B': 0, 'C': 0, 'D': 0, 'E': 0, 'F': 0,
-            'Ans': 0, 'x': 0 # Include 'x' for consistency
+            'Ans': 0, 'x': 0, 'y': 0 # Added 'y'
         }
         # Define sympy symbols for variables and symbolic calculations
-        self.sympy_vars = symbols('A B C D E F Ans x')
+        self.sympy_vars = symbols('A B C D E F Ans x y') # Added 'y'
 
         # --- Button Shift Mappings ---
         # Maps primary text to secondary (shifted) text/function representation
@@ -80,62 +193,59 @@ class CalculatorApp(ctk.CTk):
         self.button_frame = ctk.CTkFrame(self)
         self.button_frame.pack(pady=10, padx=10, fill="both", expand=True)
 
-        # Button layout definition - Replaced VARIABLE, FUNCTION, CATALOG
-        buttons = [
-            # Row 0: Function Keys (Top) - Updated
+        # Button layout definition - Added '(', ')', 'x', 'y'
+        # Adjusted layout slightly to accommodate
+        self.button_definitions = [
+            # Row 0: Function Keys (Top)
             ('SHIFT', 0, 0), ('d/dx', 0, 1), ('∫dx', 0, 2), ('solve', 0, 3), ('TOOLS', 0, 4), ('SETTINGS', 0, 5),
-            # Row 1: Navigation / Mode
-            ('HOME', 1, 2), ('↑', 1, 3), ('FORMAT', 1, 4), ('ON', 1, 5), # ON might just close the app
-            # Row 2: Navigation / Functions
-            ('QR', 2, 0), ('x²', 2, 1), ('←', 2, 2), ('OK', 2, 3), ('→', 2, 4), ('INS', 2, 5),
+            # Row 1: Navigation / Mode / Parentheses
+            ('(', 1, 0), (')', 1, 1), ('HOME', 1, 2), ('↑', 1, 3), ('FORMAT', 1, 4), ('ON', 1, 5),
+            # Row 2: Navigation / Functions / Variables
+            ('x', 2, 0), ('y', 2, 1), ('←', 2, 2), ('OK', 2, 3), ('→', 2, 4), ('INS', 2, 5),
             # Row 3: Functions / Navigation
-            ('√', 3, 0), ('log', 3, 1), ('↓', 3, 3), ('ln', 3, 4), ('(-)', 3, 5), # Placeholder for ↓ position
+            ('√', 3, 0), ('log', 3, 1), ('x²', 3, 2), ('↓', 3, 3), ('ln', 3, 4), ('(-)', 3, 5), # Moved x² here
             # Row 4: Numbers & Basic Ops
-            ('7', 4, 0), ('8', 4, 1), ('9', 4, 2), ('DEL', 4, 3, 1, 2), # DEL spans 2 columns
+            ('7', 4, 0), ('8', 4, 1), ('9', 4, 2), ('DEL', 4, 3, 1, 2), ('AC', 4, 5),
             # Row 5: Numbers & Basic Ops
             ('4', 5, 0), ('5', 5, 1), ('6', 5, 2), ('×', 5, 3), ('÷', 5, 4),
             # Row 6: Numbers & Basic Ops
             ('1', 6, 0), ('2', 6, 1), ('3', 6, 2), ('+', 6, 3), ('-', 6, 4),
             # Row 7: Numbers, Constants, Execute
-            ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4), # EXE is like =
+            ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4),
             # Row 8: Other Functions / Constants
-            ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4),
-            # Row 9: Variable Keys (Placeholder positions)
+            ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4), ('QR', 8, 5), # Moved QR
+            # Row 9: Variable Keys
             ('A', 9, 0), ('B', 9, 1), ('C', 9, 2), ('D', 9, 3), ('E', 9, 4), ('F', 9, 5),
-            # AC is often combined with DEL or ON, placed DEL for now. Added AC separately for clarity.
-            ('AC', 4, 5), # Positioned AC next to DEL
         ]
 
-        # Grid konfigürasyonu (eşit sütun/satır genişliği için)
-        rows, cols = 10, 6 # Updated grid size
+        # Grid configuration
+        rows, cols = 10, 6
         for i in range(rows):
             self.button_frame.grid_rowconfigure(i, weight=1)
         for i in range(cols):
             self.button_frame.grid_columnconfigure(i, weight=1)
 
-        # Tuşları oluştur ve yerleştir
-        self.buttons = {} # Store buttons for potential future use (e.g., SHIFT)
-        for button_data in buttons:
-            text = button_data[0]
-            row = button_data[1]
-            col = button_data[2]
+        # Button creation and placement
+        self.buttons = {} # Store button widgets {primary_text: widget}
+        for button_data in self.button_definitions:
+            primary_text = button_data[0]
+            row, col = button_data[1], button_data[2]
             rowspan = button_data[3] if len(button_data) > 3 else 1
             colspan = button_data[4] if len(button_data) > 4 else 1
 
-            # Tuşa basıldığında çağrılacak fonksiyon
-            action = lambda t=text: self.on_button_press(t)
-            button = ctk.CTkButton(self.button_frame, text=text, command=action, font=("Arial", 12)) # Smaller font
+            action = lambda p_text=primary_text: self.on_button_press(p_text)
+            button = ctk.CTkButton(self.button_frame, text=primary_text, command=action, font=("Arial", 12))
 
             # Special styling for some keys (optional)
-            if text in ['AC', 'DEL']:
+            if primary_text in ['AC', 'DEL']:
                  button.configure(fg_color=("gray70", "gray30")) # Different color for clear/delete
-            elif text in ['EXE', '=']:
+            elif primary_text in ['EXE', '=']:
                  button.configure(fg_color="blue") # Emphasize EXE/=
-            elif text == 'SHIFT':
+            elif primary_text == 'SHIFT':
                  button.configure(fg_color="orange") # Emphasize SHIFT
 
             button.grid(row=row, column=col, rowspan=rowspan, columnspan=colspan, padx=1, pady=1, sticky="nsew")
-            self.buttons[text] = button
+            self.buttons[primary_text] = button
 
     # ==============================================================================
     # UI Update and State Management Methods
@@ -290,15 +400,17 @@ class CalculatorApp(ctk.CTk):
             return
 
         # --- Special Function/Variable Keys ---
-        elif char_to_process in ['d/dx', '∫dx', 'solve', 'VARIABLE', 'FUNCTION', 'CATALOG', 'TOOLS', 'FORMAT', 'A', 'B', 'C', 'D', 'E', 'F', 'Ans', 'QR']:
+        # Added 'x', 'y' to the check
+        elif char_to_process in ['d/dx', '∫dx', 'solve', 'VARIABLE', 'FUNCTION', 'CATALOG', 'TOOLS', 'FORMAT', 'A', 'B', 'C', 'D', 'E', 'F', 'Ans', 'QR', 'x', 'y']:
             # TODO: Implement menus for VARIABLE, FUNCTION, CATALOG, TOOLS, FORMAT
             print(f"Special key pressed: {char_to_process} (Action pending for some)")
 
             # --- Text Insertion Logic (Handles Insert Mode) ---
             insert_pos = cursor_pos if self.insert_mode else "end-1c"
 
-            # Insert variable/Ans names
-            if char_to_process in self.variables or char_to_process in ['A', 'B', 'C', 'D', 'E', 'F']:
+            # Insert variable/Ans/x/y names
+            # Updated check to include x, y
+            if char_to_process in self.variables or char_to_process in ['A', 'B', 'C', 'D', 'E', 'F', 'x', 'y']:
                 if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
                 self.display.insert(insert_pos, char_to_process)
             # Insert symbolic function syntax
@@ -311,15 +423,15 @@ class CalculatorApp(ctk.CTk):
             elif char_to_process == 'solve':
                 if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
                 self.display.insert(insert_pos, "solve(")
-            elif char_to_process == 'QR':
+            elif char_to_process == 'QR': # Treat QR as sqrt
                 if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
                 self.display.insert(insert_pos, "sqrt(")
 
             # Keep display state disabled for control keys unless inserting text
-            if char_to_process not in self.variables and char_to_process not in ['A', 'B', 'C', 'D', 'E', 'F', 'QR', 'd/dx', '∫dx', 'solve']:
+            if char_to_process not in self.variables and char_to_process not in ['A', 'B', 'C', 'D', 'E', 'F', 'x', 'y', 'QR', 'd/dx', '∫dx', 'solve']:
                  self.display.configure(state="disabled")
                  return # Don't add these control characters to the display
-        # --- Numbers, Operators, Basic Functions ---
+        # --- Numbers, Operators, Basic Functions, Parentheses ---
         else:
             # --- Text Insertion Logic (Handles Insert Mode) ---
             insert_pos = cursor_pos if self.insert_mode else "end-1c"
@@ -354,8 +466,13 @@ class CalculatorApp(ctk.CTk):
             elif char_to_process == '(-)':
                  if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
                  self.display.insert(insert_pos, "-") # Use insert_pos
+            # Handle Parentheses explicitly
+            elif char_to_process in ['(', ')']:
+                 if current_text == "0" and insert_pos == "end-1c" and char_to_process == '(': self.display.delete("0.0", "end") # Clear 0 for opening paren
+                 self.display.insert(insert_pos, char_to_process)
             # Handle other characters (numbers, operators, dot, parentheses)
-            else:
+            # Make sure operators like +-*/ are included
+            elif char_to_process in '0123456789.+-×÷':
                  # Prevent multiple operators if inserting at the end (basic check)
                  if insert_pos == "end-1c":
                      last_char = current_text[-1] if current_text else ""
@@ -385,88 +502,98 @@ class CalculatorApp(ctk.CTk):
         try:
             # --- Pre-processing ---
             expr_str = expression.strip().replace('×', '*').replace('÷', '/').replace('^', '**')
-            # No need to replace internal names like root_3 here, they are used in local_dict
             if not expr_str: return 0
 
             # --- Variable Substitution Preparation ---
-            # Include 'x' symbol
             local_sympy_vars = {s.name: s for s in self.sympy_vars}
-            subs_dict = {s: Number(self.variables[s.name]) for s in self.sympy_vars if s.name in self.variables and s.name != 'x'} # Don't substitute x numerically by default
+            valid_variables = {k: v for k, v in self.variables.items() if isinstance(v, (int, float, Number))}
+            subs_dict = {s: Number(valid_variables[s.name]) for s in self.sympy_vars if s.name in valid_variables and s.name not in ['x', 'y']}
 
             # --- Define Local Dictionary for Parsing ---
+            # Use custom Function classes and direct SymPy functions/constants
             local_dict = {
-                # Constants & Basic Functions
-                "pi": pi, "E": E, "sqrt": sqrt, "log": lambda x: log(x, 10), "ln": ln,
-                "abs": Abs,
-                "exp": exp, # Use sympy.exp for e^x
-                "root_3": lambda x: root(x, 3), # Use sympy.root for nth root
-                "pow10": lambda x: Pow(10, x), # Use sympy.Pow for 10^x
-                # Trig Functions (Angle Mode Aware)
-                "sin": lambda x: sin(x * pi / 180) if self.angle_mode == "DEG" else sin(x),
-                "cos": lambda x: cos(x * pi / 180) if self.angle_mode == "DEG" else cos(x),
-                "tan": lambda x: tan(x * pi / 180) if self.angle_mode == "DEG" else tan(x),
-                # Inverse Trig Functions (Result in degrees if mode is DEG)
-                "asin": lambda x: asin(x) * 180 / pi if self.angle_mode == "DEG" else asin(x),
-                "acos": lambda x: acos(x) * 180 / pi if self.angle_mode == "DEG" else acos(x),
-                "atan": lambda x: atan(x) * 180 / pi if self.angle_mode == "DEG" else atan(x),
-                # Symbolic Functions
+                # Constants
+                "pi": pi, "E": E,
+                 # Direct Sympy Functions
+                "sqrt": sqrt, "ln": ln, "abs": Abs, "exp",
+                # Custom Functions (Angle Aware or Specific Logic)
+                "log": custom_log10,
+                "root_3": custom_root3,
+                "pow10": custom_pow10,
+                "sin": angle_aware_sin,
+                "cos": angle_aware_cos,
+                "tan": angle_aware_tan,
+                "asin": angle_aware_asin,
+                "acos": angle_aware_acos,
+                "atan": angle_aware_atan,
+                # Symbolic Functions (passed directly)
                 "diff": diff, "integrate": integrate, "solve": solve,
-                # Symbols
+                # Symbols (including x, y)
                 **local_sympy_vars
             }
 
             # --- Parsing Configuration ---
-            transformations = standard_transformations + (implicit_multiplication_application, convert_xor,)
+            # Implicit multiplication is tricky with function names.
+            # Let's disable it for now to see if it fixes the sin30 issue.
+            # We might need a more sophisticated parser if implicit multiplication is essential.
+            # transformations = standard_transformations + (implicit_multiplication_application, convert_xor,)
+            transformations = standard_transformations + (convert_xor,) # Removed implicit multiplication
 
-            # --- Check for Symbolic or Matrix Operations ---
-            # TODO: Add more robust detection for matrix functions if implemented
-            if expr_str.lower().startswith("diff(") or \
-               expr_str.lower().startswith("integrate(") or \
-               expr_str.lower().startswith("solve("):
-                # Parse the full expression including the symbolic function call
-                parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=True) # Evaluate symbolic funcs
-                # Return the symbolic result directly (sympy formats it as string)
-                return parsed_expr
-            # elif expr_str.lower().startswith("matrix(") or \
-            #      expr_str.lower().startswith("mat_"): # Placeholder check for matrix ops
-            #     try:
-            #         # WARNING: Using eval is risky. A safer parser is needed for matrix strings.
-            #         # This is a basic placeholder and needs secure implementation.
-            #         result = eval(expr_str, {"np": np}, local_dict)
-            #         return str(result) # Return matrix as string
-            #     except Exception as matrix_e:
-            #         print(f"Matrix Calculation Error: {matrix_e}")
-            #         return "Matrix Error"
-            else:
-                # --- Standard Numerical Calculation ---
-                # Parse expression without evaluating symbolic functions yet
-                parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=False)
-                # Substitute numerical variable values (A-F, Ans)
-                substituted_expr = parsed_expr.subs(subs_dict)
-                # Evaluate numerically
-                result = N(substituted_expr)
-                return result
+            # --- Parsing and Evaluation ---
+            is_symbolic_call = expr_str.lower().startswith(("diff(", "integrate(", "solve("))
+
+            # Parse the expression, keeping custom functions unevaluated initially
+            parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=False)
+
+            if not isinstance(parsed_expr, Expr):
+                 raise sympy.SympifyError(f"Invalid expression input: {expression}")
+
+            # Substitute numerical variables (A-F, Ans)
+            substituted_expr = parsed_expr.subs(subs_dict) if hasattr(parsed_expr, 'subs') else parsed_expr
+
+            # --- Numerical Evaluation using evalf ---
+            # Pass the current angle mode to the evalf context for custom functions
+            # The precision can be adjusted if needed
+            result = substituted_expr.evalf(subs={'angle_mode': self.angle_mode}) # Pass mode via subs
+
+            # Check if result is symbolic (e.g., diff result) or numerical
+            if not result.is_Number and not is_symbolic_call:
+                 # If it's not a number after evalf and wasn't a symbolic call,
+                 # it might indicate an issue or unevaluated parts.
+                 # Try N() as a fallback, but this might indicate a deeper problem.
+                 try:
+                     result = N(substituted_expr)
+                 except Exception as e:
+                     print(f"Evalf resulted in non-number, N() failed: {e}")
+                     raise sympy.SympifyError("Could not evaluate expression numerically")
+
+            # For purely symbolic results (like diff), return them directly
+            if is_symbolic_call and not result.is_Number:
+                 return result
+
+            # Return numerical result (could be float, Integer, Rational)
+            return result
 
         # --- Error Handling (refined) ---
-        except (sympy.SympifyError, SyntaxError) as e:
-            print(f"Calculation Error (Syntax): {e}")
+        except (sympy.SympifyError, SyntaxError, TokenError) as e:
+            print(f"Calculation Error (Syntax/Parsing): {type(e).__name__} - {e}")
+            # Specific check for implicit multiplication issue if it was intended
+            if "implicit multiplication" in str(e).lower():
+                 return "Syntax Error (Implicit Mult?)"
             return "Syntax Error"
         except TypeError as e:
-            # Check if it's related to symbolic functions needing more args
-            if any(func in str(e).lower() for func in ['diff', 'integrate', 'solve']):
-                 print(f"Calculation Error (Args): {e}")
-                 return "Argument Error" # More specific for symbolic funcs
-            print(f"Calculation Error (Type): {e}")
+            # This error should be less likely with custom Function classes
+            print(f"Calculation Error (Type/Args): {e}")
             return "Type Error"
         except ZeroDivisionError:
             print("Calculation Error: Division by zero")
             return "Division by Zero"
-        except (ValueError, sympy.PoleError) as e:
+        except (ValueError, sympy.PoleError) as e: # PoleError can be raised by custom tan
             print(f"Calculation Error (Domain/Pole): {e}")
             return "Math Error"
         except AttributeError as e:
-            print(f"Calculation Error (Attribute): {e}")
-            return "Variable Error"
+            print(f"Calculation Error (Attribute/Subs): {e}")
+            return "Error" # Generic error
         except NameError as e:
             print(f"Calculation Error (Name): {e}")
             return "Undefined Error"
@@ -474,8 +601,8 @@ class CalculatorApp(ctk.CTk):
             print(f"Unexpected Error: {type(e).__name__} - {e}")
             return "System Error"
 
-
 # ==============================================================================
+
 # Main Application Execution
 # ==============================================================================
 if __name__ == "__main__":
