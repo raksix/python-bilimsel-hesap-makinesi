@@ -5,7 +5,7 @@ import sympy
 # Import necessary sympy functions and types
 from sympy import (sympify, N, pi, E, sqrt, log, ln, sin as sympy_sin, cos as sympy_cos, tan as sympy_tan, # Renamed base trig
                    asin as sympy_asin, acos as sympy_acos, atan as sympy_atan, # Renamed base inverse trig
-                   symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp,
+                   symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp, Eq, # Added Eq
                    init_printing, Function, Expr) # Added Function, Expr
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application, convert_xor
 import numpy as np # Import NumPy for matrix operations
@@ -193,8 +193,7 @@ class CalculatorApp(ctk.CTk):
         self.button_frame = ctk.CTkFrame(self)
         self.button_frame.pack(pady=10, padx=10, fill="both", expand=True)
 
-        # Button layout definition - Added '(', ')', 'x', 'y'
-        # Adjusted layout slightly to accommodate
+        # Button layout definition - Added '=' next to EXE
         self.button_definitions = [
             # Row 0: Function Keys (Top)
             ('SHIFT', 0, 0), ('d/dx', 0, 1), ('∫dx', 0, 2), ('solve', 0, 3), ('TOOLS', 0, 4), ('SETTINGS', 0, 5),
@@ -211,7 +210,7 @@ class CalculatorApp(ctk.CTk):
             # Row 6: Numbers & Basic Ops
             ('1', 6, 0), ('2', 6, 1), ('3', 6, 2), ('+', 6, 3), ('-', 6, 4),
             # Row 7: Numbers, Constants, Execute
-            ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4),
+            ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4), ('=', 7, 5), # Added '=' button
             # Row 8: Other Functions / Constants
             ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4), ('QR', 8, 5), # Moved QR
             # Row 9: Variable Keys
@@ -239,10 +238,11 @@ class CalculatorApp(ctk.CTk):
             # Special styling for some keys (optional)
             if primary_text in ['AC', 'DEL']:
                  button.configure(fg_color=("gray70", "gray30")) # Different color for clear/delete
-            elif primary_text in ['EXE', '=']:
-                 button.configure(fg_color="blue") # Emphasize EXE/=
+            elif primary_text == 'EXE': # Only EXE gets blue color now
+                 button.configure(fg_color="blue") # Emphasize EXE
             elif primary_text == 'SHIFT':
                  button.configure(fg_color="orange") # Emphasize SHIFT
+            # Removed the styling for '=' button
 
             button.grid(row=row, column=col, rowspan=rowspan, columnspan=colspan, padx=1, pady=1, sticky="nsew")
             self.buttons[primary_text] = button
@@ -351,11 +351,18 @@ class CalculatorApp(ctk.CTk):
             # If DEL is pressed when text is "0", do nothing special yet
             # Keep display enabled after DEL to allow further editing/deletion
             disable_display_after = False
-        elif primary_char == 'EXE' or primary_char == '=':
+        elif primary_char == 'EXE': # Removed '=' from this condition
             result = self.calculate(current_text)
             self.display.delete("0.0", "end")
             self.display.insert("0.0", str(result))
-            # ... (Ans update logic) ...
+            # Update last_result only if calculation was successful and numerical
+            if isinstance(result, (int, float, Number)):
+                 self.last_result = result
+                 self.variables['Ans'] = result # Update Ans variable
+            elif isinstance(result, str) and "Error" not in result:
+                 # Handle symbolic results or formatted equation results if needed
+                 # For now, don't update last_result for non-numerical strings
+                 pass
             if self.shift_active: self.toggle_shift()
             # Disable after calculation
         elif primary_char == 'SETTINGS':
@@ -421,7 +428,7 @@ class CalculatorApp(ctk.CTk):
             # Return only if it's a non-inserting action (like opening a menu)
             # if char_to_process in ['VARIABLE', 'FUNCTION', ...]: return
 
-        # --- Numbers, Operators, Basic Functions, Parentheses ---
+        # --- Numbers, Operators, Basic Functions, Parentheses, Equals Sign ---
         else:
             # Use cursor_pos for insertion position
             insert_pos = cursor_pos # Use the cursor position determined earlier
@@ -429,9 +436,9 @@ class CalculatorApp(ctk.CTk):
             text_to_insert = "" # Determine what text to insert based on char_to_process
 
             # If display is "0" and inserting at the beginning, replace "0"
-            # unless it's an operator/dot/paren that should follow 0
+            # unless it's an operator/dot/paren/equals that should follow 0
             if current_text == "0" and insert_pos == "1.0" and \
-               char_to_process not in ['+', '-', '×', '÷', '.', '(', ')', '^', '*']:
+               char_to_process not in ['+', '-', '×', '÷', '.', '(', ')', '^', '*', '=']: # Added '=' here
                  self.display.delete("1.0", "end")
                  insert_pos = "1.0" # Reset position after delete
 
@@ -450,16 +457,11 @@ class CalculatorApp(ctk.CTk):
                  text_to_insert = internal_char
             elif char_to_process == '(-)':
                  text_to_insert = "-"
-            # Handle numbers, operators, dot, parentheses directly
-            elif char_to_process in '0123456789.+-×÷()':
-                 # Basic check to prevent double operators if appending (needs refinement for cursor)
-                 # This check is less relevant now we insert at cursor, but might prevent some errors
-                 # last_char = self.display.get(f"{insert_pos}-1c", insert_pos) if insert_pos != "1.0" else ""
-                 # is_op = char_to_process in '+-×÷'
-                 # is_last_op = last_char in '+-×÷'
-                 # if is_op and is_last_op:
-                 #     # Replace last operator? Or just prevent? For now, allow insertion.
-                 #     text_to_insert = char_to_process
+            # Handle numbers, operators, dot, parentheses, and equals sign directly
+            elif char_to_process in '0123456789.+-×÷()=': # Added '=' here
+                 # Prevent inserting '=' if one already exists? (Optional validation)
+                 # if char_to_process == '=' and '=' in current_text:
+                 #     pass # Do nothing if '=' already present
                  # else:
                  text_to_insert = char_to_process
             else:
@@ -485,7 +487,7 @@ class CalculatorApp(ctk.CTk):
     def calculate(self, expression):
         """
         Parses and evaluates the mathematical expression using SymPy.
-        Handles variable substitution, angle modes, symbolic operations, shifted functions, and errors.
+        Handles variable substitution, angle modes, symbolic operations, shifted functions, equations, and errors.
         """
         try:
             # --- Pre-processing ---
@@ -524,69 +526,97 @@ class CalculatorApp(ctk.CTk):
             # Re-enable implicit multiplication to handle cases like '9x' inside functions
             transformations = standard_transformations + (implicit_multiplication_application, convert_xor,)
 
-            # --- Parsing ---
-            # Parse the expression, keeping custom and symbolic functions unevaluated initially
-            parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=False)
+            # --- Equation Handling ---
+            is_equation = '=' in expr_str and expr_str.count('=') == 1
 
-            if not isinstance(parsed_expr, Expr):
-                 # Handle cases where parsing might fail subtly or return unexpected types
-                 # This might happen if input is just a function name like "sin"
-                 # Or if the syntax is fundamentally wrong before even reaching SymPy evaluation
-                 raise sympy.SympifyError(f"Invalid expression input: {expression}")
+            if is_equation:
+                # Split into LHS and RHS
+                lhs_str, rhs_str = expr_str.split('=', 1)
+                # Parse LHS and RHS separately
+                lhs_expr = parse_expr(lhs_str, local_dict=local_dict, transformations=transformations, evaluate=False)
+                rhs_expr = parse_expr(rhs_str, local_dict=local_dict, transformations=transformations, evaluate=False)
 
-            # --- Substitution ---
-            substituted_expr = parsed_expr.subs(subs_dict) if hasattr(parsed_expr, 'subs') else parsed_expr
+                # Create SymPy Equation object
+                equation = Eq(lhs_expr, rhs_expr)
 
-            # --- Evaluation ---
-            # Check if the expression is an unevaluated symbolic function call
-            # Simplified check: Rely on Derivative/Integral classes and the func attribute check
-            is_symbolic_func = isinstance(substituted_expr, (sympy.Derivative, sympy.Integral)) \
-                               or (hasattr(substituted_expr, 'func') and substituted_expr.func in (diff, integrate, solve))
+                # Substitute known variables (A-F, Ans)
+                equation = equation.subs(subs_dict)
 
+                # Assume solving for 'x' if present
+                solve_var = local_sympy_vars.get('x')
+                if solve_var and solve_var in equation.free_symbols:
+                    result = solve(equation, solve_var)
+                    # Format result: solve might return a list
+                    if isinstance(result, list):
+                        if len(result) == 1:
+                            return f"x = {result[0]}" # Display single solution nicely
+                        else:
+                            return f"x = {result}" # Display list for multiple solutions
+                    else: # Handle other possible return types from solve if necessary
+                        return f"x = {result}"
+                else:
+                    # If 'x' is not in the equation, maybe try 'y' or return error?
+                    return "Error: No variable (x) to solve for"
 
-            if is_symbolic_func:
-                # Perform the symbolic operation
-                result = substituted_expr.doit()
+            # --- Standard Expression Parsing & Evaluation (if not an equation) ---
             else:
-                # --- Numerical Evaluation using evalf ---
-                # Pass the current angle mode to the evalf context for custom functions
-                result = substituted_expr.evalf(subs={'angle_mode': self.angle_mode})
+                # Parse the expression, keeping custom and symbolic functions unevaluated initially
+                parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=False)
 
-                # Check if evalf resulted in a number, otherwise try N() as fallback
-                if not result.is_Number:
-                    try:
-                        result_n = N(substituted_expr)
-                        # Only use N() result if evalf didn't produce a number
-                        if not result.is_Number:
-                             result = result_n
-                    except Exception as e:
-                        print(f"Evalf resulted in non-number, N() failed: {e}")
-                        # If still not a number, might be an unresolved symbolic expression
-                        # Return the result from evalf (which might be symbolic)
-                        pass # Keep the result from evalf
+                if not isinstance(parsed_expr, Expr):
+                     raise sympy.SympifyError(f"Invalid expression input: {expression}")
 
-            # Return the final result (could be number, symbolic expression, list for solve, etc.)
-            return result
+                # --- Substitution ---
+                substituted_expr = parsed_expr.subs(subs_dict) if hasattr(parsed_expr, 'subs') else parsed_expr
+
+                # --- Evaluation ---
+                # Check if the expression is an unevaluated symbolic function call
+                is_symbolic_func = isinstance(substituted_expr, (sympy.Derivative, sympy.Integral)) \
+                                   or (hasattr(substituted_expr, 'func') and substituted_expr.func in (diff, integrate)) # Removed solve from here
+
+                if is_symbolic_func:
+                    # Perform the symbolic operation (diff, integrate)
+                    result = substituted_expr.doit()
+                # Handle explicit solve() function call if needed (though equation format is preferred)
+                elif hasattr(substituted_expr, 'func') and substituted_expr.func is solve:
+                     # This handles cases like solve(x**2-4, x) entered directly
+                     result = substituted_expr.doit() # doit() works for solve too
+                else:
+                    # --- Numerical Evaluation using evalf ---
+                    # Pass the current angle mode to the evalf context for custom functions
+                    result = substituted_expr.evalf(subs={'angle_mode': self.angle_mode})
+
+                    # Check if evalf resulted in a number, otherwise try N() as fallback
+                    if not result.is_Number:
+                        try:
+                            result_n = N(substituted_expr)
+                            # Only use N() result if evalf didn't produce a number
+                            if not result.is_Number:
+                                 result = result_n
+                        except Exception as e:
+                            print(f"Evalf resulted in non-number, N() failed: {e}")
+                            # If still not a number, might be an unresolved symbolic expression
+                            # Return the result from evalf (which might be symbolic)
+                            pass # Keep the result from evalf
+
+                # Return the final result
+                return result
 
         # --- Error Handling (refined) ---
         except (sympy.SympifyError, SyntaxError, TokenError) as e:
             print(f"Calculation Error (Syntax/Parsing): {type(e).__name__} - {e}")
             # Add more specific checks if needed
             if "invalid syntax" in str(e).lower():
-                 # Check if it might be related to implicit multiplication failure
-                 if any(op in expr_str for op in ['(', ')']) and not any(op in expr_str for op in [',', '+', '-', '*', '/']):
-                     # Heuristic: If parentheses exist but no operators/comma, maybe implicit mult failed?
-                     return "Syntax Error (Implicit Mult?)"
-                 elif any(f in expr_str for f in ['diff(', 'integrate(', 'solve(']):
-                     return "Argument Error" # Suggests wrong arguments for symbolic functions
+                 # ... (Syntax error checks) ...
+                 if is_equation:
+                     return "Equation Syntax Error"
             return "Syntax Error"
         except TypeError as e:
-            # Check if it's related to symbolic functions needing more args during doit()
-            if any(func in str(e).lower() for func in ['diff', 'integrate', 'solve', 'derivative', 'integral']):
-                 print(f"Calculation Error (Symbolic Args): {e}")
-                 return "Argument Error"
-            print(f"Calculation Error (Type/Args): {e}")
+            # ... (TypeError checks) ...
+            if is_equation:
+                return "Equation Error"
             return "Type Error"
+        # ... (rest of error handling) ...
         except ZeroDivisionError:
             print("Calculation Error: Division by zero")
             return "Division by Zero"
@@ -601,9 +631,9 @@ class CalculatorApp(ctk.CTk):
             return "Undefined Error"
         except Exception as e:
             print(f"Unexpected Error: {type(e).__name__} - {e}")
-            # Check if it's related to doit() failing
-            if "doit" in str(e).lower():
-                 return "Evaluation Error"
+            if is_equation:
+                return "Solve Error"
+            # ... (other exception checks) ...
             return "System Error"
 
 # ==============================================================================

@@ -17,15 +17,16 @@ Elbette, Casio FX-99ICW benzeri bir bilimsel hesap makinesi uygulaması için ad
         *   Tüm Casio FX-99ICW tuşları (aşağıda listelenmiştir) arayüzde buton olarak yer alacak.
     *   **2.1.2. Tuş Takımı ve İşlevler:**
         *   **Rakamlar:** 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, . (ondalık nokta)
-        *   **Temel Operatörler:** +, -, ×, ÷, = (veya EXE)
+        *   **Temel Operatörler:** +, -, ×, ÷, =
         *   **Matematiksel Fonksiyonlar:** QR (Karekök), √ (Karekök), x² (Kare), log (10 tabanında logaritma), ln (Doğal logaritma), sin, cos, tan, Ans (Son cevap), (, ), x10^ (10 üzeri), π (Pi sabiti), e (Euler sabiti)
         *   **Mod ve Navigasyon:** on (Açma/Kapama - Uygulama başlatma/kapatma simülasyonu), HOME, SETTINGS (Ayarlar menüsü - başlangıçta derece/radyan geçişi), Yukarı/Aşağı/Sol/Sağ Ok Tuşları (Giriş/geçmişte gezinme), OK (Onay)
         *   **Fonksiyon Tuşları:** SHIFT (İkincil fonksiyonları etkinleştirme), VARIABLE (Değişken menüsü), FUNCTION (Fonksiyon menüsü), CATALOG (Fonksiyon kataloğu), TOOLS (Araçlar menüsü)
         *   **Değişken Tuşları:** A, B, C, D, E, F (Değer atama ve kullanma)
-        *   **Özel Tuşlar:** FORMAT (Sayı formatı), EXE (Hesapla/Eşittir), INS (İnsert/Ekleme modu), AC (All Clear/Tümünü Temizle), (-) (Negatif işareti)
+        *   **Özel Tuşlar:** FORMAT (Sayı formatı), EXE (Hesapla/Eşittir), = (Hesapla/Eşittir - EXE ile aynı işlev), INS (İnsert/Ekleme modu), AC (All Clear/Tümünü Temizle), (-) (Negatif işareti)
     *   **2.1.3. Hesaplama Motoru:**
         *   Standart matematiksel işlem önceliğini (PEMDAS/BODMAS) doğru bir şekilde uygulayacak.
         *   Girilen ifadeleri ayrıştırıp (parsing) değerlendirecek (evaluation).
+        *   '=' veya 'EXE' tuşuna basıldığında hesaplama yapılacak.
         *   Trigonometrik fonksiyonlar için Derece ve Radyan modları arasında geçiş yapılabilecek ve hesaplamalar seçili moda göre yapılacak.
         *   Logaritmik (log, ln) ve üstel (x10^) fonksiyonları destekleyecek.
         *   `sympy` kütüphanesi kullanılarak sembolik türev ve integral hesaplamaları yapılacak (örneğin, `diff(x**2, x)`, `integrate(x, x)`).
