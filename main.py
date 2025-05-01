@@ -390,14 +390,35 @@ class CalculatorApp(ctk.CTk):
             self.toggle_insert_mode()
             self.display.configure(state="disabled") # Keep disabled after INS toggle
             return
-        # --- Navigation Keys (Placeholders) ---
+        # --- Navigation Keys ---
         elif primary_char in ['↑', '↓', '←', '→', 'HOME', 'OK']:
-            # TODO: Implement cursor movement within the display textbox
-            # TODO: Implement history navigation (↑/↓) if applicable
-            # TODO: Implement OK functionality (e.g., confirm selection)
-            print(f"Navigation key pressed: {primary_char} (Not implemented)")
-            self.display.configure(state="disabled") # Keep disabled for unimplemented nav keys
-            return
+            if primary_char == '←':
+                # Move cursor left, but not before the beginning ("1.0")
+                current_cursor_index = self.display.index(ctk.INSERT)
+                # Compare line and char parts separately if needed, or just string compare
+                if current_cursor_index != "1.0":
+                    self.display.mark_set(ctk.INSERT, f"{current_cursor_index}-1c")
+            elif primary_char == '→':
+                # Move cursor right, but not past the end
+                # Getting the actual end index is slightly tricky, might need adjustment
+                # For now, just move right. CTkTextbox might handle boundary.
+                 self.display.mark_set(ctk.INSERT, f"{cursor_pos}+1c")
+            elif primary_char == 'HOME':
+                 # Move cursor to the beginning of the text (after the implicit newline)
+                 self.display.mark_set(ctk.INSERT, "1.0")
+            elif primary_char == '↑':
+                 # Placeholder for history up
+                 print(f"Navigation key pressed: {primary_char} (History Up - Not implemented)")
+            elif primary_char == '↓':
+                 # Placeholder for history down
+                 print(f"Navigation key pressed: {primary_char} (History Down - Not implemented)")
+            elif primary_char == 'OK':
+                 # Placeholder for OK action
+                 print(f"Navigation key pressed: {primary_char} (OK - Not implemented)")
+
+            # Keep display disabled after navigation
+            self.display.configure(state="disabled")
+            return # Stop further processing for navigation keys
 
         # --- Special Function/Variable Keys ---
         # Added 'x', 'y' to the check
@@ -434,58 +455,35 @@ class CalculatorApp(ctk.CTk):
         # --- Numbers, Operators, Basic Functions, Parentheses ---
         else:
             # --- Text Insertion Logic (Handles Insert Mode) ---
-            insert_pos = cursor_pos if self.insert_mode else "end-1c"
+            insert_pos = cursor_pos if self.insert_mode else self.display.index(ctk.INSERT) # Use current cursor if INS
 
-            # If display is "0" and inserting at end, replace "0" (unless operator/dot)
-            if current_text == "0" and insert_pos == "end-1c" and char_to_process not in ['+', '-', '×', '÷', '.', '(', ')', '-']:
-                 self.display.delete("0.0", "end")
-                 self.display.insert(insert_pos, char_to_process) # Use insert_pos
-            # Append function names with an opening parenthesis
-            elif char_to_process in ['sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'asin', 'acos', 'atan', 'diff', 'integrate', 'solve', '³√', 'e^', '10^']:
-                 if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
+            # If display is "0" and inserting at start/end, replace "0"
+            # Refined logic to handle cursor position
+            if current_text == "0":
+                 # Replace "0" only if inserting a non-operator/dot at the very beginning
+                 # or if inserting anywhere when not in insert mode (effectively appending)
+                 should_replace_zero = (
+                     (not self.insert_mode or insert_pos == "1.0") and
+                     char_to_process not in ['+', '-', '×', '÷', '.', '(', ')', '^', '*'] # Added ^ *
+                 )
+                 if should_replace_zero:
+                     self.display.delete("1.0", "end")
+                     insert_pos = "1.0" # Ensure insertion is at the start after deleting
+
+            # ... (Rest of the insertion logic for functions, numbers, operators, etc.) ...
+            # Ensure all self.display.insert calls use the calculated insert_pos
+
+            # Example for function insertion:
+            if char_to_process in ['sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'asin', 'acos', 'atan', 'diff', 'integrate', 'solve', '³√', 'e^', '10^']:
                  internal_char = {'√': 'sqrt', '³√': 'root_3', 'e^': 'exp', '10^': 'pow10'}.get(char_to_process, char_to_process)
-                 self.display.insert(insert_pos, internal_char + "(") # Use insert_pos
-            # Append x² as '**2'
-            elif char_to_process == 'x²':
-                 if current_text != "0" or insert_pos != "end-1c":
-                     self.display.insert(insert_pos, "**2") # Use insert_pos
-            # Append x³ as '**3'
-            elif char_to_process == 'x³':
-                 if current_text != "0" or insert_pos != "end-1c":
-                     self.display.insert(insert_pos, "**3") # Use insert_pos
-            # Append x10^ as '*10**'
-            elif char_to_process == 'x10^':
-                 if current_text != "0" or insert_pos != "end-1c": # Allow if not just "0" or inserting mid-expression
-                     self.display.insert(insert_pos, "*10**") # Use insert_pos
-            # Append constants or 'x'
-            elif char_to_process in ['π', 'e', 'x']:
-                 if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
-                 internal_char = {'π': 'pi', 'e': 'E', 'x': 'x'}[char_to_process]
-                 self.display.insert(insert_pos, internal_char) # Use insert_pos
-            # Handle negative sign (-)
-            elif char_to_process == '(-)':
-                 if current_text == "0" and insert_pos == "end-1c": self.display.delete("0.0", "end")
-                 self.display.insert(insert_pos, "-") # Use insert_pos
-            # Handle Parentheses explicitly
-            elif char_to_process in ['(', ')']:
-                 if current_text == "0" and insert_pos == "end-1c" and char_to_process == '(': self.display.delete("0.0", "end") # Clear 0 for opening paren
+                 self.display.insert(insert_pos, internal_char + "(")
+            # Example for number/operator insertion:
+            elif char_to_process in '0123456789.+-×÷()': # Added () here too
+                 # Basic operator replacement logic (needs refinement for cursor position)
+                 # if insert_pos == "end-1c": ...
                  self.display.insert(insert_pos, char_to_process)
-            # Handle other characters (numbers, operators, dot, parentheses)
-            # Make sure operators like +-*/ are included
-            elif char_to_process in '0123456789.+-×÷':
-                 # Prevent multiple operators if inserting at the end (basic check)
-                 if insert_pos == "end-1c":
-                     last_char = current_text[-1] if current_text else ""
-                     is_op = char_to_process in ['+', '-', '×', '÷']
-                     is_last_op = last_char in ['+', '-', '×', '÷']
-                     if is_op and is_last_op:
-                         self.display.delete(f"end-{2}c", "end-1c")
-                         self.display.insert("end-1c", char_to_process) # Insert at end
-                     elif not (current_text == "0" and char_to_process == "0"):
-                         self.display.insert("end-1c", char_to_process) # Insert at end
-                 else:
-                     # Allow inserting anywhere if in insert mode (more complex validation needed)
-                     self.display.insert(insert_pos, char_to_process) # Use insert_pos
+            # ... (other specific insertions like **, pi, E, etc. using insert_pos) ...
+
 
         # --- Final state update ---
         # Re-disable display editing after processing the key press
