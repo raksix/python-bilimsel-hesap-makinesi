@@ -74,7 +74,7 @@ Elbette, Casio FX-99ICW benzeri bir bilimsel hesap makinesi uygulaması için ad
 *   **Trigonometri (Derece Modu):** `sin(30)` -> Beklenen Sonuç: `0.5`
 *   **Trigonometri (Radyan Modu):** `cos(pi)` -> Beklenen Sonuç: `-1`
 *   **Logaritma:** `log(100)` -> Beklenen Sonuç: `2`
-*   **Doğal Logaritma:** `ln(e)` -> Beklenen Sonuç: `1`
+*   **Doğal Logaritma:** `ln(e)` -> Beklenen Sonuç: `1` -
 *   **Karekök:** `sqrt(9)` veya `√(9)` -> Beklenen Sonuç: `3`
 *   **Üs Alma:** `2^3` (veya `2 x^y 3`) -> Beklenen Sonuç: `8`
 *   **Değişken Kullanımı:** `5 -> A`, `A + 10` -> Beklenen Sonuç: `15`, `Ans` -> Beklenen Sonuç: `15`

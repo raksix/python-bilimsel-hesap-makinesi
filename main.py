@@ -6,7 +6,7 @@ import sympy
 from sympy import (sympify, N, pi, E, sqrt, log, ln, sin as sympy_sin, cos as sympy_cos, tan as sympy_tan, # Renamed base trig
                    asin as sympy_asin, acos as sympy_acos, atan as sympy_atan, # Renamed base inverse trig
                    symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp, Eq, # Added Eq
-                   init_printing, Function, Expr) # Added Function, Expr
+                   init_printing, Function, Expr, zoo) # Added zoo
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application, convert_xor
 import numpy as np # Import NumPy for matrix operations
 from tokenize import TokenError # Import TokenError for explicit handling
@@ -212,7 +212,7 @@ class CalculatorApp(ctk.CTk):
             # Row 7: Numbers, Constants, Execute
             ('0', 7, 0), ('.', 7, 1), ('x10^', 7, 2), ('Ans', 7, 3), ('EXE', 7, 4), ('=', 7, 5), # Added '=' button
             # Row 8: Other Functions / Constants
-            ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4), ('QR', 8, 5), # Moved QR
+            ('sin', 8, 0), ('cos', 8, 1), ('tan', 8, 2), ('π', 8, 3), ('e', 8, 4), ('QR', 8, 5), # 'e' button is here
             # Row 9: Variable Keys
             ('A', 9, 0), ('B', 9, 1), ('C', 9, 2), ('D', 9, 3), ('E', 9, 4), ('F', 9, 5),
         ]
@@ -462,8 +462,13 @@ class CalculatorApp(ctk.CTk):
             elif char_to_process == 'x10^':
                  text_to_insert = "*10**"
             elif char_to_process in ['π', 'e', 'x']:
-                 internal_char = {'π': 'pi', 'e': 'E', 'x': 'x'}[char_to_process]
-                 text_to_insert = internal_char
+                 # Insert the character as seen on the button (lowercase e, pi symbol)
+                 if char_to_process == 'e':
+                     text_to_insert = 'e'
+                 elif char_to_process == 'π':
+                     text_to_insert = 'π'
+                 elif char_to_process == 'x':
+                     text_to_insert = 'x'
             elif char_to_process == '(-)':
                  text_to_insert = "-"
             # Handle numbers, operators, dot, parentheses, and equals sign directly
@@ -498,9 +503,11 @@ class CalculatorApp(ctk.CTk):
         Parses and evaluates the mathematical expression using SymPy.
         Handles variable substitution, angle modes, symbolic operations, shifted functions, equations, and errors.
         """
+        is_equation = False # Define early for use in exception handling
         try:
             # --- Pre-processing ---
-            expr_str = expression.strip().replace('×', '*').replace('÷', '/').replace('^', '**')
+            # Replace π with pi for SymPy compatibility before parsing
+            expr_str = expression.strip().replace('×', '*').replace('÷', '/').replace('^', '**').replace('π', 'pi')
             if not expr_str: return 0
 
             # --- Variable Substitution Preparation ---
@@ -511,8 +518,10 @@ class CalculatorApp(ctk.CTk):
             # --- Define Local Dictionary for Parsing ---
             # Use custom Function classes and direct SymPy functions/constants
             local_dict = {
-                # Constants
-                "pi": pi, "E": E,
+                # Constants - Map both 'pi' (from input) and 'E'/'e' to SymPy constants
+                "pi": pi,
+                "E": E,
+                "e": E, # Add lowercase 'e' mapping
                  # Direct Sympy Functions
                 "sqrt": sqrt, "ln": ln, "abs": Abs, "exp": exp,
                 # Custom Functions (Angle Aware or Specific Logic)
@@ -570,6 +579,7 @@ class CalculatorApp(ctk.CTk):
             # --- Standard Expression Parsing & Evaluation (if not an equation) ---
             else:
                 # Parse the expression, keeping custom and symbolic functions unevaluated initially
+                # 'e' and 'pi' in expr_str will be correctly mapped via local_dict
                 parsed_expr = parse_expr(expr_str, local_dict=local_dict, transformations=transformations, evaluate=False)
 
                 if not isinstance(parsed_expr, Expr):
@@ -607,6 +617,11 @@ class CalculatorApp(ctk.CTk):
                             # If still not a number, might be an unresolved symbolic expression
                             # Return the result from evalf (which might be symbolic)
                             pass # Keep the result from evalf
+
+                # --- Check for Division by Zero (zoo) ---
+                if result == zoo or result == -zoo:
+                    print("Calculation Result: zoo (Division by zero)")
+                    return "Division by Zero"
 
                 # Return the final result
                 return result
