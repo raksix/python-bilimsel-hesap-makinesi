@@ -4,7 +4,8 @@ import math
 import sympy
 # Import necessary sympy functions and types
 from sympy import (sympify, N, pi, E, sqrt, log, ln, sin, cos, tan, asin, acos, atan, # Added inverse trig
-                   symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp) # Added root, exp
+                   symbols, Number, diff, integrate, solve, Symbol, Pow, Abs, root, exp,
+                   init_printing) # Added init_printing here
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application, convert_xor
 import numpy as np # Import NumPy for matrix operations
 
