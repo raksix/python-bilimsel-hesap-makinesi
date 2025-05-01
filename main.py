@@ -398,7 +398,7 @@ class CalculatorApp(ctk.CTk):
             # We don't return here anymore, let the final state check handle it
 
         # --- Special Function/Variable Keys ---
-        elif char_to_process in ['d/dx', '∫dx', 'solve', 'VARIABLE', 'FUNCTION', 'CATALOG', 'TOOLS', 'FORMAT', 'A', 'B', 'C', 'D', 'E', 'F', 'Ans', 'QR', 'x', 'y']:
+        elif char_to_process in ['d/dx', '∫dx', 'solve', 'VARIABLE', 'FUNCTION', 'CATALOG', 'TOOLS', 'FORMAT', 'A', 'B', 'C', 'D', 'E', 'F', 'Ans', 'x', 'y']:
             # Use cursor_pos for insertion position
             insert_pos_for_special = cursor_pos # Use the cursor position
 
@@ -417,8 +417,6 @@ class CalculatorApp(ctk.CTk):
                 self.display.insert(insert_pos_for_special, "integrate(")
             elif char_to_process == 'solve':
                 self.display.insert(insert_pos_for_special, "solve(")
-            elif char_to_process == 'QR':
-                self.display.insert(insert_pos_for_special, "sqrt(")
             else:
                  # Handle other special keys like VARIABLE, FUNCTION etc. if they insert text
                  print(f"Special key pressed: {char_to_process} (Action pending)")
@@ -443,7 +441,9 @@ class CalculatorApp(ctk.CTk):
                  insert_pos = "1.0" # Reset position after delete
 
             # Determine text_to_insert based on char_to_process
-            if char_to_process in ['sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'asin', 'acos', 'atan', 'diff', 'integrate', 'solve', '³√', 'e^', '10^']:
+            # Ensure '√' is included here (it already is via the dictionary)
+            if char_to_process in ['sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'asin', 'acos', 'atan', 'diff', 'integrate', 'solve', '³√', 'e^', '10^', '√']: # Added '√' explicitly for clarity, though handled by dict
+                 # The dictionary correctly maps '√' to 'sqrt'
                  internal_char = {'√': 'sqrt', '³√': 'root_3', 'e^': 'exp', '10^': 'pow10'}.get(char_to_process, char_to_process)
                  text_to_insert = internal_char + "("
             elif char_to_process == 'x²':
