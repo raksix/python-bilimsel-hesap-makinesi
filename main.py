@@ -708,7 +708,12 @@ class CalculatorApp(ctk.CTk):
                             # Return the result from evalf (which might be symbolic)
                             pass # Keep the result from evalf
 
+                # --- Check for near-zero results and convert to exact 0 ---
+                if result.is_Number and Abs(result) < 1e-12: # Tolerance for floating point inaccuracy
+                    result = sympy.Integer(0)
+
                 # --- Check for Division by Zero (zoo) ---
+                # Check after potential zero conversion
                 if result == zoo or result == -zoo:
                     print("Calculation Result: zoo (Division by zero)")
                     return "Division by Zero"
