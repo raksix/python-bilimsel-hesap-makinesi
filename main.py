@@ -404,11 +404,15 @@ class CalculatorApp(ctk.CTk):
                     num_res = N(exact_result, subs={'angle_mode': self.angle_mode})
                     if isinstance(num_res, (int, float, Number)):
                         numerical_result_val = float(num_res)
-                        numerical_result_str = str(numerical_result_val)
+                        # Format to int if it's a whole number
+                        if numerical_result_val.is_integer():
+                            numerical_result_str = str(int(numerical_result_val))
+                        else:
+                            numerical_result_str = str(numerical_result_val)
                     else: # If N() still returns symbolic
                         numerical_result_str = str(exact_result) # Show exact form
-                        numerical_result_val = 0
-                    self.last_result = numerical_result_val
+                        numerical_result_val = 0 # Or handle as appropriate
+                    self.last_result = numerical_result_val if numerical_result_val is not None else 0
                 except Exception as e:
                     print(f"Error during numerical evaluation for display: {e}")
                     numerical_result_str = str(exact_result) # Fallback to exact string
@@ -438,19 +442,38 @@ class CalculatorApp(ctk.CTk):
                     if isinstance(self.last_exact_result, list): # Handle list from solve
                         try:
                             num_solutions = [N(sol) for sol in self.last_exact_result]
-                            if len(num_solutions) == 1:
-                                display_text = f"x = {num_solutions[0]}"
+                            # Format solutions for display (example, can be more sophisticated)
+                            formatted_solutions = []
+                            for sol_val in num_solutions:
+                                if float(sol_val).is_integer():
+                                    formatted_solutions.append(str(int(sol_val)))
+                                else:
+                                    formatted_solutions.append(str(float(sol_val)))
+
+                            if len(formatted_solutions) == 1:
+                                display_text = f"x = {formatted_solutions[0]}"
                             else:
-                                display_text = f"x = {num_solutions}"
+                                display_text = f"x = {formatted_solutions}"
                         except Exception as e:
                              print(f"Error evaluating solutions numerically for S<=>D: {e}")
-                             display_text = str(self.last_result) # Fallback? Or show exact list?
+                             # Fallback for list display if formatting fails
+                             if float(self.last_result).is_integer():
+                                 display_text = str(int(self.last_result))
+                             else:
+                                 display_text = str(self.last_result)
                     else: # Handle standard expressions/numbers
                         try:
-                            num_res = N(self.last_exact_result, subs={'angle_mode': self.angle_mode})
-                            display_text = str(float(num_res)) # Convert to float then string
+                            num_res_float = float(N(self.last_exact_result, subs={'angle_mode': self.angle_mode}))
+                            if num_res_float.is_integer():
+                                display_text = str(int(num_res_float))
+                            else:
+                                display_text = str(num_res_float)
                         except:
-                            display_text = str(self.last_result) # Fallback to stored numerical value
+                            # Fallback to stored numerical value with formatting
+                            if float(self.last_result).is_integer():
+                                display_text = str(int(self.last_result))
+                            else:
+                                display_text = str(self.last_result)
                 else:
                     # --- Display Exact Form ---
                     if isinstance(self.last_exact_result, list): # Handle list from solve
